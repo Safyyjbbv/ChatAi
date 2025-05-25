@@ -1,0 +1,30 @@
+{
+  "name": "gemini",
+  "version": "1.0.0",
+  "description": "![Banner](banner.png)",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Safyyjbbv/Gemini.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Safyyjbbv/Gemini/issues"
+  },
+  "homepage": "https://github.com/Safyyjbbv/Gemini#readme",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "pg": "^8.16.0",
+    "postgres": "^3.4.7"
+  }
+}
