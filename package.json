@@ -1,18 +1,19 @@
 {
-  "name": "openai-chat-app",
+  "name": "gemini-ai-assistant",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "A simple Gemini AI Assistant powered by Node.js and Express.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "author": "Wanz Xploit",
+  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "openai": "^4.100.0"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
   }
 }
