@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
     <style>
-        /* --- Gaya CSS Anda yang sudah ada --- */
+        /* --- Gaya CSS Anda yang sudah ada (tidak ada perubahan besar di sini) --- */
         * {
             margin: 0;
             padding: 0;
@@ -431,6 +431,7 @@ function saveChatHistory() {
 }
 
 // Fungsi untuk menambahkan pesan ke DOM dan chatHistory
+// isRenderOnly: true jika hanya me-render dari history yang dimuat (jangan simpan lagi)
 function appendMessage(content, role, isRenderOnly = false) {
     const chatContainer = document.getElementById('chat-container');
     const welcomeMessage = document.getElementById('welcome-message');
@@ -585,49 +586,58 @@ async function generateContent() {
     submitBtn.disabled = true;
 
     // Tambahkan pesan pengguna ke tampilan segera dan ke chatHistory
+    // Fungsi appendMessage sudah menangani penambahan ke chatHistory dan penyimpanan
     appendMessage(prompt, 'user');
 
     const typingIndicator = showTypingIndicator();
     promptInput.value = '';
 
     try {
+        // Kirim seluruh chatHistory ke backend, termasuk pesan user yang baru ditambahkan
+        // Server Anda (server.js) akan menggabungkan ini dengan user prompt terakhir
+        // Penting: pastikan tidak ada duplikasi pesan user di backend.
+        // Berdasarkan server.js Anda, backend akan membangun `contents` sebagai:
+        // `const contents = [...history, { role: "user", parts: [{ text: prompt }] }];`
+        // Ini berarti `history` yang kita kirim dari frontend TIDAK boleh mengandung prompt terakhir
+        // Jadi, kita kirim `chatHistory` TANPA pesan user terakhir yang baru saja kita tambahkan
         const historyForBackend = chatHistory.slice(0, -1); // Exclude the very last user message
 
-        // --- INI PERUBAHAN UTAMANYA: Mengubah URL fetch ---
-        // Menggunakan path relatif agar sesuai dengan domain Vercel
         const response = await fetch("/api/generate", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                prompt: prompt,
-                history: historyForBackend
+                prompt: prompt, // Prompt terpisah
+                history: historyForBackend // Riwayat percakapan sebelumnya
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Network response was not ok: ${response.status} ${response.statusText}`);
+            throw new Error(errorData.error || 'Network response was not ok');
         }
 
         const data = await response.json();
         removeTypingIndicator(typingIndicator);
 
         if (data.response) {
+            // Tambahkan respons AI ke tampilan dan chatHistory
             appendMessage(data.response, 'model');
         } else {
-            appendMessage("Sorry, there was an error processing your request. No valid response received.", 'model');
+            appendMessage("Sorry, there was an error processing your request. Please try again.", 'model');
             console.error("No response or unexpected format:", data);
-            chatHistory.pop();
-            saveChatHistory();
+            // Jika ada error pada respons, hapus pesan user terakhir dari history karena tidak ada balasan
+            chatHistory.pop(); // Hapus pesan user terakhir
+            saveChatHistory(); // Simpan history yang sudah diperbarui
         }
     } catch (error) {
         removeTypingIndicator(typingIndicator);
-        appendMessage(`Error: ${error.message || "Failed to connect to the server. Please check your network and try again."}`, 'model');
+        appendMessage(`Error: ${error.message || "Failed to connect to the server. Please try again."}`, 'model');
         console.error('Error in generateContent:', error);
-        chatHistory.pop();
-        saveChatHistory();
+        // Hapus pesan user terakhir dari history jika gagal mendapatkan respons
+        chatHistory.pop(); // Hapus pesan user terakhir
+        saveChatHistory(); // Simpan history yang sudah diperbarui
     } finally {
         isGenerating = false;
         promptInput.disabled = false;
@@ -639,7 +649,7 @@ async function generateContent() {
 document.addEventListener('DOMContentLoaded', () => {
     const promptInput = document.getElementById('prompt');
     promptInput.focus();
-    loadChatHistory();
+    loadChatHistory(); // Muat riwayat saat DOMContentLoaded
 });
     </script>
 </body>
