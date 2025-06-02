@@ -50,12 +50,11 @@
             display: flex;
             align-items: center;
             gap: 1rem;
-            flex: 1; /* Tambahkan ini agar profile-info bisa mengisi ruang */
+            flex: 1;
         }
 
-        /* Style untuk tombol clear chat */
         .clear-chat-button {
-            background-color: #dc2626; /* Merah */
+            background-color: #dc2626;
             color: white;
             border: none;
             border-radius: 9999px;
@@ -70,7 +69,7 @@
         }
 
         .clear-chat-button:hover {
-            background-color: #ef4444; /* Merah yang sedikit lebih terang saat hover */
+            background-color: #ef4444;
             transform: translateY(-1px);
         }
 
@@ -115,34 +114,26 @@
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 8.5rem 1rem 7rem 1rem;
+            padding: 8.5rem 1rem 7rem 1rem; /* Padding 1rem di kiri dan kanan container */
             scroll-behavior: smooth;
-            /* background: linear-gradient(to bottom, #131320, #1a1a2e); */ /* Ini akan diganti/ditimpa */
-
-            /* --- Gaya untuk Background Gambar --- */
             background-image: url('https://mfiles.alphacoders.com/101/1011643.jpeg');
-            background-size: cover; /* Untuk memastikan gambar menutupi seluruh area */
-            background-repeat: no-repeat; /* Mencegah gambar berulang */
-            background-position: center center; /* Menempatkan gambar di tengah */
-            background-attachment: fixed; /* Opsi: membuat background tetap saat scroll */
-            /* --- Akhir Gaya Background Gambar --- */
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-attachment: fixed;
         }
 
-        /* --- Penting: Sesuaikan opacity pesan agar teks tetap terbaca --- */
         .message, .welcome-message, .typing-indicator {
-            position: relative; /* Penting untuk z-index */
-            z-index: 2; /* Pastikan pesan-pesan di atas background */
-            /* Anda bisa menambahkan background semi-transparan pada pesan jika perlu */
-            /* Contoh: background-color: rgba(31, 41, 55, 0.8); */
+            position: relative;
+            z-index: 2;
         }
 
-        /* Untuk welcome message, tambahkan opacity agar tulisan tidak terlalu 'tenggelam' */
         .welcome-message {
             text-align: center;
             margin-bottom: 1.5rem;
             color: #9ca3af;
             animation: fadeIn 1s ease-out;
-            background-color: rgba(31, 41, 55, 0.7); /* Opacity ditingkatkan */
+            background-color: rgba(31, 41, 55, 0.7);
             padding: 1.5rem;
             border-radius: 1rem;
             backdrop-filter: blur(10px);
@@ -155,15 +146,17 @@
             font-size: 1rem;
         }
 
+        /* --- MODIFIKASI KRUSIAL PADA .message --- */
         .message {
-            max-width: 85%;
-            margin: 1rem 0;
+            display: table; /* PENTING: Membuat lebar elemen sesuai konten */
+            max-width: 75%; /* Batasi lebar maksimum agar tidak terlalu lebar */
             padding: 1rem 1.25rem;
             border-radius: 1.25rem;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
             animation: slideIn 0.3s ease-out;
             position: relative;
-            word-wrap: break-word;
+            word-wrap: break-word; /* Memastikan teks panjang pecah baris */
+            margin: 1rem 0; /* Margin vertikal tetap, horizontal akan diatur oleh user/assistant message */
         }
 
         .message pre {
@@ -209,19 +202,29 @@
             font-weight: bold;
         }
 
+        /* --- REKONSTRUKSI BALON OBROLAN USER --- */
         .user-message {
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
-            margin-left: auto;
+            background: rgba(79, 70, 229, 0.7);
             color: white;
-            border-bottom-right-radius: 0.5rem;
+            margin: 1rem 1.5rem 1rem auto; /* Atur margin: 1rem atas/bawah, 1.5rem kanan, auto di kiri */
+                                        /* 1.5rem kanan memberikan jarak lebih jauh dari tepi kanan */
+            border-bottom-right-radius: 0.5rem; /* Sudut tajam/kurang bulat di bawah kanan (sisi pengirim) */
+            border-top-left-radius: 1.25rem;
+            border-top-right-radius: 1.25rem;
+            border-bottom-left-radius: 1.25rem;
         }
 
+        /* --- REKONSTRUKSI BALON OBROLAN ASSISTANT --- */
         .assistant-message {
-            background-color: #1f2937;
-            margin-right: auto;
+            background-color: rgba(31, 41, 55, 0.7);
             color: #f3f4f6;
-            border: 1px solid #2d2d3d;
-            border-bottom-left-radius: 0.5rem;
+            border: 1px solid rgba(45, 45, 61, 0.5);
+            margin: 1rem auto 1rem 1.5rem; /* Atur margin: 1rem atas/bawah, auto di kanan, 1.5rem kiri */
+                                        /* 1.5rem kiri memberikan jarak lebih jauh dari tepi kiri */
+            border-bottom-left-radius: 0.5rem; /* Sudut tajam/kurang bulat di bawah kiri (sisi pengirim) */
+            border-top-left-radius: 1.25rem;
+            border-top-right-radius: 1.25rem;
+            border-bottom-right-radius: 1.25rem;
         }
 
         .typing-indicator {
@@ -229,13 +232,13 @@
             align-items: center;
             gap: 0.5rem;
             padding: 1rem;
-            background-color: #1f2937;
+            background-color: rgba(31, 41, 55, 0.7);
             border-radius: 1.25rem;
             border-bottom-left-radius: 0.5rem;
-            margin: 1rem 0;
-            max-width: 85%;
+            margin: 1rem auto 1rem 1.5rem; /* Atur margin seperti asisten untuk konsistensi */
+            max-width: 75%; /* Menyesuaikan dengan max-width message */
             animation: slideIn 0.3s ease-out;
-            border: 1px solid #2d2d3d;
+            border: 1px solid rgba(45, 45, 61, 0.5);
         }
 
         .typing-dot {
@@ -356,9 +359,19 @@
             }
 
             .message {
+                max-width: 90%; /* Tetap lebih lebar untuk mobile */
+            }
+
+            /* Sesuaikan margin untuk mobile agar tetap ada jarak */
+            .user-message {
+                margin: 0.75rem 0.75rem 0.75rem auto; /* Jarak dari tepi lebih kecil di mobile */
+            }
+            .assistant-message {
+                margin: 0.75rem auto 0.75rem 0.75rem; /* Jarak dari tepi lebih kecil di mobile */
+            }
+            .typing-indicator {
+                margin: 0.75rem auto 0.75rem 0.75rem;
                 max-width: 90%;
-                margin: 0.75rem 0;
-                padding: 0.75rem 1rem;
             }
 
             button span {
@@ -434,11 +447,10 @@ marked.setOptions({
 });
 
 let isGenerating = false;
-let chatHistory = []; // <-- Variabel global untuk menyimpan riwayat percakapan
+let chatHistory = [];
 
-const CHAT_HISTORY_KEY = 'geminiChatHistory'; // Kunci untuk localStorage
+const CHAT_HISTORY_KEY = 'geminiChatHistory';
 
-// --- Fungsi Helper untuk localStorage ---
 function saveChatHistory() {
     try {
         localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
@@ -447,13 +459,10 @@ function saveChatHistory() {
     }
 }
 
-// Fungsi untuk menambahkan pesan ke DOM dan chatHistory
-// isRenderOnly: true jika hanya me-render dari history yang dimuat (jangan simpan lagi)
 function appendMessage(content, role, isRenderOnly = false) {
     const chatContainer = document.getElementById('chat-container');
     const welcomeMessage = document.getElementById('welcome-message');
 
-    // Hapus welcome message jika ini pesan pertama ATAU ada pesan yang ditambahkan
     if (welcomeMessage) {
         welcomeMessage.remove();
     }
@@ -463,15 +472,14 @@ function appendMessage(content, role, isRenderOnly = false) {
 
     let displayContent;
     if (role === 'user') {
-        displayContent = content; // Pesan user tidak perlu di-parse markdown
+        displayContent = content;
     } else {
         displayContent = marked.parse(content);
     }
 
     messageDiv.innerHTML = displayContent;
 
-    // Handle code blocks for highlighting and copy buttons
-    if (role === 'model') { // Hanya untuk pesan asisten (model)
+    if (role === 'model') {
         messageDiv.querySelectorAll('pre').forEach((pre) => {
             const copyButton = document.createElement('button');
             copyButton.className = 'copy-button';
@@ -483,7 +491,6 @@ function appendMessage(content, role, isRenderOnly = false) {
                     .catch(() => showToast('Failed to copy!'));
             };
             pre.appendChild(copyButton);
-            // Pastikan highlighting berjalan setelah copy button ditambahkan
             hljs.highlightElement(pre.querySelector('code'));
         });
     }
@@ -491,50 +498,43 @@ function appendMessage(content, role, isRenderOnly = false) {
     chatContainer.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    // Hanya tambahkan ke chatHistory dan simpan jika bukan hanya render dari history yang dimuat
     if (!isRenderOnly) {
         chatHistory.push({
             role: role,
-            parts: [{ text: content }] // Sesuai format API Gemini
+            parts: [{ text: content }]
         });
-        saveChatHistory(); // Simpan riwayat setelah setiap pesan baru
+        saveChatHistory();
     }
 }
-
 
 function loadChatHistory() {
     const storedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
     const chatContainer = document.getElementById('chat-container');
 
-    // Kosongkan container sebelum memuat
     chatContainer.innerHTML = '';
 
     if (storedHistory) {
         try {
             const parsedHistory = JSON.parse(storedHistory);
             if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
-                chatHistory = parsedHistory; // Inisialisasi chatHistory dengan yang dimuat
+                chatHistory = parsedHistory;
                 chatHistory.forEach(message => {
-                    // Gunakan isRenderOnly = true agar tidak disimpan berulang kali
                     appendMessage(message.parts[0].text, message.role, true);
                 });
             } else {
-                // Jika storedHistory kosong atau tidak valid, tampilkan welcome message
                 displayWelcomeMessage();
             }
         } catch (e) {
             console.error("Error parsing chat history from localStorage:", e);
-            chatHistory = []; // Reset jika ada error parsing
-            localStorage.removeItem(CHAT_HISTORY_KEY); // Hapus data rusak
-            displayWelcomeMessage(); // Tampilkan welcome message
+            chatHistory = [];
+            localStorage.removeItem(CHAT_HISTORY_KEY);
+            displayWelcomeMessage();
         }
     } else {
-        // Tampilkan welcome message jika tidak ada history sama sekali
         displayWelcomeMessage();
     }
 }
 
-// Fungsi untuk menampilkan welcome message (jika tidak ada chat history)
 function displayWelcomeMessage() {
     const chatContainer = document.getElementById('chat-container');
     const welcomeMessageHtml = `
@@ -544,19 +544,16 @@ function displayWelcomeMessage() {
         </div>
     `;
     chatContainer.innerHTML = welcomeMessageHtml;
-    // Scroll ke atas setelah menampilkan welcome message
     chatContainer.scrollTop = 0;
 }
 
-
-// --- Fungsi Tombol Hapus Obrolan ---
 function clearChat() {
     if (confirm("Are you sure you want to clear the entire chat history?")) {
-        chatHistory = []; // Reset riwayat di memori
-        localStorage.removeItem(CHAT_HISTORY_KEY); // Hapus dari localStorage
+        chatHistory = [];
+        localStorage.removeItem(CHAT_HISTORY_KEY);
         const chatContainer = document.getElementById('chat-container');
-        chatContainer.innerHTML = ''; // Kosongkan tampilan chat
-        displayWelcomeMessage(); // Tampilkan kembali welcome message
+        chatContainer.innerHTML = '';
+        displayWelcomeMessage();
         showToast('Chat history cleared!');
     }
 }
@@ -568,7 +565,6 @@ function showToast(message) {
     setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
-// showTypingIndicator dan removeTypingIndicator tetap sama
 function showTypingIndicator() {
     const chatContainer = document.getElementById('chat-container');
     const typingDiv = document.createElement('div');
@@ -602,22 +598,13 @@ async function generateContent() {
     promptInput.disabled = true;
     submitBtn.disabled = true;
 
-    // Tambahkan pesan pengguna ke tampilan segera dan ke chatHistory
-    // Fungsi appendMessage sudah menangani penambahan ke chatHistory dan penyimpanan
     appendMessage(prompt, 'user');
 
     const typingIndicator = showTypingIndicator();
     promptInput.value = '';
 
     try {
-        // Kirim seluruh chatHistory ke backend, termasuk pesan user yang baru ditambahkan
-        // Server Anda (server.js) akan menggabungkan ini dengan user prompt terakhir
-        // Penting: pastikan tidak ada duplikasi pesan user di backend.
-        // Berdasarkan server.js Anda, backend akan membangun `contents` sebagai:
-        // `const contents = [...history, { role: "user", parts: [{ text: prompt }] }];`
-        // Ini berarti `history` yang kita kirim dari frontend TIDAK boleh mengandung prompt terakhir
-        // Jadi, kita kirim `chatHistory` TANPA pesan user terakhir yang baru saja kita tambahkan
-        const historyForBackend = chatHistory.slice(0, -1); // Exclude the very last user message
+        const historyForBackend = chatHistory.slice(0, -1);
 
         const response = await fetch("/api/generate", {
             method: "POST",
@@ -625,8 +612,8 @@ async function generateContent() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                prompt: prompt, // Prompt terpisah
-                history: historyForBackend // Riwayat percakapan sebelumnya
+                prompt: prompt,
+                history: historyForBackend
             })
         });
 
@@ -639,22 +626,19 @@ async function generateContent() {
         removeTypingIndicator(typingIndicator);
 
         if (data.response) {
-            // Tambahkan respons AI ke tampilan dan chatHistory
             appendMessage(data.response, 'model');
         } else {
             appendMessage("Sorry, there was an error processing your request. Please try again.", 'model');
             console.error("No response or unexpected format:", data);
-            // Jika ada error pada respons, hapus pesan user terakhir dari history karena tidak ada balasan
-            chatHistory.pop(); // Hapus pesan user terakhir
-            saveChatHistory(); // Simpan history yang sudah diperbarui
+            chatHistory.pop();
+            saveChatHistory();
         }
     } catch (error) {
         removeTypingIndicator(typingIndicator);
         appendMessage(`Error: ${error.message || "Failed to connect to the server. Please try again."}`, 'model');
         console.error('Error in generateContent:', error);
-        // Hapus pesan user terakhir dari history jika gagal mendapatkan respons
-        chatHistory.pop(); // Hapus pesan user terakhir
-        saveChatHistory(); // Simpan history yang sudah diperbarui
+        chatHistory.pop();
+        saveChatHistory();
     } finally {
         isGenerating = false;
         promptInput.disabled = false;
@@ -666,7 +650,7 @@ async function generateContent() {
 document.addEventListener('DOMContentLoaded', () => {
     const promptInput = document.getElementById('prompt');
     promptInput.focus();
-    loadChatHistory(); // Muat riwayat saat DOMContentLoaded
+    loadChatHistory();
 });
     </script>
 </body>
