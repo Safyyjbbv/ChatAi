@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
     <style>
+        /* --- Gaya CSS Anda yang sudah ada --- */
         * {
             margin: 0;
             padding: 0;
@@ -49,7 +50,32 @@
             display: flex;
             align-items: center;
             gap: 1rem;
-            flex: 1;
+            flex: 1; /* Tambahkan ini agar profile-info bisa mengisi ruang */
+        }
+
+        /* Style untuk tombol clear chat */
+        .clear-chat-button {
+            background-color: #dc2626; /* Merah */
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            padding: 0.75rem 1.25rem;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.938rem;
+        }
+
+        .clear-chat-button:hover {
+            background-color: #ef4444; /* Merah yang sedikit lebih terang saat hover */
+            transform: translateY(-1px);
+        }
+
+        .clear-chat-button:active {
+            transform: translateY(0);
         }
 
         .profile-image {
@@ -347,12 +373,16 @@
                     <div class="profile-name">Gemini AI Assistant</div>
                 </div>
             </div>
+            <button onclick="clearChat()" class="clear-chat-button" id="clear-chat-btn">
+                <i class="fas fa-trash"></i>
+                <span>Clear Chat</span>
+            </button>
         </div>
         <div class="credit">Powered by Wanz Xploit</div>
     </div>
 
     <div class="chat-container" id="chat-container">
-        <div class="welcome-message">
+        <div class="welcome-message" id="welcome-message">
             <h2>Welcome to Gemini AI Assistant!</h2>
             <p>I'm here to help you. Feel free to ask me anything.</p>
         </div>
@@ -362,9 +392,9 @@
 
     <div class="input-container">
         <div class="input-wrapper">
-            <input 
-                type="text" 
-                id="prompt" 
+            <input
+                type="text"
+                id="prompt"
                 placeholder="Type your message..."
                 onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); generateContent(); }"
             />
@@ -387,23 +417,43 @@ marked.setOptions({
 });
 
 let isGenerating = false;
+let chatHistory = []; // <-- Variabel global untuk menyimpan riwayat percakapan
 
-function showToast(message) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2000);
+const CHAT_HISTORY_KEY = 'geminiChatHistory'; // Kunci untuk localStorage
+
+// --- Fungsi Helper untuk localStorage ---
+function saveChatHistory() {
+    try {
+        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
+    } catch (e) {
+        console.error("Error saving chat history to localStorage:", e);
+    }
 }
 
-function appendMessage(content, isUser = false) {
+// Fungsi untuk menambahkan pesan ke DOM dan chatHistory
+function appendMessage(content, role, isRenderOnly = false) {
     const chatContainer = document.getElementById('chat-container');
+    const welcomeMessage = document.getElementById('welcome-message');
+
+    // Hapus welcome message jika ini pesan pertama ATAU ada pesan yang ditambahkan
+    if (welcomeMessage) {
+        welcomeMessage.remove();
+    }
+
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
-    
-    if (isUser) {
-        messageDiv.textContent = content;
+    messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
+
+    let displayContent;
+    if (role === 'user') {
+        displayContent = content; // Pesan user tidak perlu di-parse markdown
     } else {
-        messageDiv.innerHTML = marked.parse(content);
+        displayContent = marked.parse(content);
+    }
+
+    messageDiv.innerHTML = displayContent;
+
+    // Handle code blocks for highlighting and copy buttons
+    if (role === 'model') { // Hanya untuk pesan asisten (model)
         messageDiv.querySelectorAll('pre').forEach((pre) => {
             const copyButton = document.createElement('button');
             copyButton.className = 'copy-button';
@@ -415,14 +465,92 @@ function appendMessage(content, isUser = false) {
                     .catch(() => showToast('Failed to copy!'));
             };
             pre.appendChild(copyButton);
+            // Pastikan highlighting berjalan setelah copy button ditambahkan
             hljs.highlightElement(pre.querySelector('code'));
         });
     }
-    
+
     chatContainer.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Hanya tambahkan ke chatHistory dan simpan jika bukan hanya render dari history yang dimuat
+    if (!isRenderOnly) {
+        chatHistory.push({
+            role: role,
+            parts: [{ text: content }] // Sesuai format API Gemini
+        });
+        saveChatHistory(); // Simpan riwayat setelah setiap pesan baru
+    }
 }
 
+
+function loadChatHistory() {
+    const storedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
+    const chatContainer = document.getElementById('chat-container');
+
+    // Kosongkan container sebelum memuat
+    chatContainer.innerHTML = '';
+
+    if (storedHistory) {
+        try {
+            const parsedHistory = JSON.parse(storedHistory);
+            if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+                chatHistory = parsedHistory; // Inisialisasi chatHistory dengan yang dimuat
+                chatHistory.forEach(message => {
+                    // Gunakan isRenderOnly = true agar tidak disimpan berulang kali
+                    appendMessage(message.parts[0].text, message.role, true);
+                });
+            } else {
+                // Jika storedHistory kosong atau tidak valid, tampilkan welcome message
+                displayWelcomeMessage();
+            }
+        } catch (e) {
+            console.error("Error parsing chat history from localStorage:", e);
+            chatHistory = []; // Reset jika ada error parsing
+            localStorage.removeItem(CHAT_HISTORY_KEY); // Hapus data rusak
+            displayWelcomeMessage(); // Tampilkan welcome message
+        }
+    } else {
+        // Tampilkan welcome message jika tidak ada history sama sekali
+        displayWelcomeMessage();
+    }
+}
+
+// Fungsi untuk menampilkan welcome message (jika tidak ada chat history)
+function displayWelcomeMessage() {
+    const chatContainer = document.getElementById('chat-container');
+    const welcomeMessageHtml = `
+        <div class="welcome-message" id="welcome-message">
+            <h2>Welcome to Gemini AI Assistant!</h2>
+            <p>I'm here to help you. Feel free to ask me anything.</p>
+        </div>
+    `;
+    chatContainer.innerHTML = welcomeMessageHtml;
+    // Scroll ke atas setelah menampilkan welcome message
+    chatContainer.scrollTop = 0;
+}
+
+
+// --- Fungsi Tombol Hapus Obrolan ---
+function clearChat() {
+    if (confirm("Are you sure you want to clear the entire chat history?")) {
+        chatHistory = []; // Reset riwayat di memori
+        localStorage.removeItem(CHAT_HISTORY_KEY); // Hapus dari localStorage
+        const chatContainer = document.getElementById('chat-container');
+        chatContainer.innerHTML = ''; // Kosongkan tampilan chat
+        displayWelcomeMessage(); // Tampilkan kembali welcome message
+        showToast('Chat history cleared!');
+    }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// showTypingIndicator dan removeTypingIndicator tetap sama
 function showTypingIndicator() {
     const chatContainer = document.getElementById('chat-container');
     const typingDiv = document.createElement('div');
@@ -456,33 +584,50 @@ async function generateContent() {
     promptInput.disabled = true;
     submitBtn.disabled = true;
 
-    appendMessage(prompt, true);
+    // Tambahkan pesan pengguna ke tampilan segera dan ke chatHistory
+    appendMessage(prompt, 'user');
+
     const typingIndicator = showTypingIndicator();
     promptInput.value = '';
 
     try {
-        const response = await fetch("http://localhost:3000/api/generate", {
+        const historyForBackend = chatHistory.slice(0, -1); // Exclude the very last user message
+
+        // --- INI PERUBAHAN UTAMANYA: Mengubah URL fetch ---
+        // Menggunakan path relatif agar sesuai dengan domain Vercel
+        const response = await fetch("/api/generate", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ prompt: prompt })
+            body: JSON.stringify({
+                prompt: prompt,
+                history: historyForBackend
+            })
         });
 
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Network response was not ok: ${response.status} ${response.statusText}`);
+        }
 
         const data = await response.json();
         removeTypingIndicator(typingIndicator);
-        
+
         if (data.response) {
-            appendMessage(data.response);
+            appendMessage(data.response, 'model');
         } else {
-            appendMessage("Sorry, there was an error processing your request.");
+            appendMessage("Sorry, there was an error processing your request. No valid response received.", 'model');
+            console.error("No response or unexpected format:", data);
+            chatHistory.pop();
+            saveChatHistory();
         }
     } catch (error) {
         removeTypingIndicator(typingIndicator);
-        appendMessage("Error connecting to the server. Please try again.");
-        console.error('Error:', error);
+        appendMessage(`Error: ${error.message || "Failed to connect to the server. Please check your network and try again."}`, 'model');
+        console.error('Error in generateContent:', error);
+        chatHistory.pop();
+        saveChatHistory();
     } finally {
         isGenerating = false;
         promptInput.disabled = false;
@@ -494,7 +639,8 @@ async function generateContent() {
 document.addEventListener('DOMContentLoaded', () => {
     const promptInput = document.getElementById('prompt');
     promptInput.focus();
+    loadChatHistory();
 });
     </script>
-    </body>
-    </html>
+</body>
+</html>
