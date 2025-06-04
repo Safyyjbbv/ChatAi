@@ -15,7 +15,6 @@ const app = express();
 
 app.use(express.json()); // Middleware untuk parsing body JSON
 app.use(express.static(path.join(__dirname, "public"))); // Melayani file statis dari folder 'public'
-app.use(express.static("public"));
 app.use(cors()); // Mengizinkan semua origin untuk development, bisa diatur lebih spesifik nanti
 
 // Hapus semua fungsi terkait config.json dan promptForApiKey:
@@ -23,6 +22,7 @@ app.use(cors()); // Mengizinkan semua origin untuk development, bisa diatur lebi
 // const loadApiKey = () => { /* ... */ };
 // const saveApiKey = (apiKey) => { /* ... */ };
 // const promptForApiKey = async () => { /* ... */ };
+
 app.post("/api/generate", async (req, res) => {
     // req.body.prompt akan berisi pesan terbaru dari pengguna
     // req.body.history akan berisi array objek history dari frontend
@@ -76,17 +76,6 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "index.html"));
 });
 
-const initializeServer = async () => {
-    // console.clear(); // Hapus ini, tidak relevan untuk server yang di-deploy
-    // Bagian API Key prompt tidak diperlukan lagi karena menggunakan Environment Variables
-    // let apiKey = loadApiKey();
-    // if (!apiKey) {
-    //     apiKey = await promptForApiKey();
-    // }
 
-    // Gunakan process.env.PORT yang disediakan Vercel, fallback ke 3000 untuk lokal
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-};
-
-initializeServer();
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
