@@ -1,107 +1,92 @@
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const cors = require('cors');
-require('dotenv').config(); // Load environment variables from .env file
+// server.js
+
+// Memuat variabel dari .env ke process.env (hanya untuk pengembangan lokal)
+// Baris ini akan diabaikan oleh Vercel karena Vercel akan langsung menyediakan variabel lingkungan
+require('dotenv').config();
+
+process.noDeprecation = true;
+
+const express = require("express");
+const path = require("path");
+// const fs = require("fs"); // Hapus baris ini karena kita tidak lagi membaca/menulis file lokal
+const cors = require('cors'); // Tambahkan ini untuk mengatasi masalah CORS
 
 const app = express();
-const port = 3000;
 
-app.use(cors()); // Enable CORS for all routes
-app.use(express.json()); // Enable JSON body parser
+app.use(express.json()); // Middleware untuk parsing body JSON
+app.use(express.static(path.join(__dirname, "public"))); // Melayani file statis dari folder 'public'
+app.use(express.static("public"));
+app.use(cors()); // Mengizinkan semua origin untuk development, bisa diatur lebih spesifik nanti
 
-// Serve static files from the current directory (where index.html is)
-app.use(express.static(__dirname));
+// Hapus semua fungsi terkait config.json dan promptForApiKey:
+// const CONFIG_FILE = "config.json";
+// const loadApiKey = () => { /* ... */ };
+// const saveApiKey = (apiKey) => { /* ... */ };
+// const promptForApiKey = async () => { /* ... */ };
+app.post("/api/generate", async (req, res) => {
+    // req.body.prompt akan berisi pesan terbaru dari pengguna
+    // req.body.history akan berisi array objek history dari frontend
+    const prompt = req.body.prompt;
+    const history = req.body.history || []; // Dapatkan history dari request body
 
-app.post('/api/generate', async (req, res) => {
-    // API Key and model now come from the request body
-    const { prompt, history, apiKey, model: selectedModel } = req.body; 
+    const apiKey = process.env.GEMINI_API_KEY; // Ambil API Key dari environment variables
 
-    // Validate if API Key is provided
     if (!apiKey) {
-        return res.status(400).json({ error: 'Gemini API Key is required.' });
+        console.error("Error: Gemini API Key not configured!");
+        return res.status(500).json({ error: "Gemini API Key not configured on the server." });
     }
 
-    // Validate if prompt is provided
-    if (!prompt) {
-        return res.status(400).json({ error: 'Prompt is required.' });
-    }
+    // Bangun struktur 'contents' yang sesuai dengan API Gemini
+    // Gabungkan history yang diterima dari frontend dengan prompt saat ini
+    const contents = [...history, { role: "user", parts: [{ text: prompt }] }];
 
-    // Validate selected model
-    const allowedModels = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro", "models/gemini-pro"]; // Add more if needed
-    if (!allowedModels.includes(selectedModel)) {
-        return res.status(400).json({ error: 'Invalid AI model selected.' });
-    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`; // Menggunakan model gemini-1.0-pro untuk percakapan, sesuaikan jika perlu
 
     try {
-        // Initialize GoogleGenerativeAI with the provided API Key
-        const genAI = new GoogleGenerativeAI(apiKey);
-        // Use the model selected by the user
-        const model = genAI.getGenerativeModel({ model: selectedModel }); 
-
-        // Transform history to match Gemini's expected format if necessary
-        const chatHistory = history.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model', // Ensure roles are 'user' or 'model'
-            parts: msg.parts.map(part => ({ text: part.text })) // Ensure parts have 'text' property
-        }));
-
-        const chat = model.startChat({
-            history: chatHistory,
-            generationConfig: {
-                maxOutputTokens: 10000000,
-            },
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: contents, // Mengirimkan history dan prompt
+            }),
         });
 
-        // ----- PERUBAHAN UNTUK STREAMING DI SINI -----
-        const result = await chat.sendMessageStream(prompt);
+        const data = await response.json();
 
-        // Set header untuk streaming
-        res.setHeader('Content-Type', 'text/plain');
-        res.setHeader('Transfer-Encoding', 'chunked');
-
-        for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
-            if (chunkText) {
-                res.write(chunkText);
-            }
+        // Tangani error dari API Gemini itu sendiri
+        if (data.error) {
+            console.error("Gemini API Error:", data.error);
+            return res.status(data.error.code || 500).json({ error: data.error.message || "Error from Gemini API." });
         }
-        res.end(); // Akhiri respons setelah semua chunk dikirim
 
-    } catch (error) {
-        console.error('Error generating content:', error);
-        // Provide more specific error messages if possible
-        let statusCode = 500;
-        let errorMessage = `An internal server error occurred: ${error.message}`;
-
-        if (error.message.includes('API key not valid')) {
-            statusCode = 401;
-            errorMessage = 'Invalid Gemini API Key. Please check your key in settings.';
-        } else if (error.message.includes('quota')) {
-            statusCode = 429;
-            errorMessage = 'API quota exceeded. Please try again later or check your Google Cloud Console.';
-        } else if (error.message.includes('model is not found') || error.message.includes('400 Not Found')) {
-            statusCode = 404;
-            errorMessage = 'AI model not found or unavailable. Please check your API key region or try a different model.';
-        } else if (error.message.includes('Blocked reason')) {
-            statusCode = 403; // Forbidden
-            errorMessage = `Content generation blocked: ${error.message}`;
-        } else if (error.name === 'AbortError') {
-             // Handle client-side abortion (although not typical for server errors directly from client)
-             statusCode = 400;
-             errorMessage = 'Request aborted by client.';
-        }
-        
-        // If an error occurs during streaming, send JSON error before ending
-        if (!res.headersSent) {
-            res.status(statusCode).json({ error: errorMessage });
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            const generatedText = data.candidates[0].content.parts[0].text;
+            res.json({ response: generatedText });
         } else {
-            // If headers already sent (meaning some chunks were sent), log and just end
-            console.error('Error after headers sent:', errorMessage);
-            res.end();
+            console.error("Gemini API: No results found or unexpected response format.", data);
+            res.status(400).json({ error: "No response from Gemini or unexpected format." });
         }
+    } catch (err) {
+        console.error("Error during API call to Gemini:", err);
+        res.status(500).json({ error: "Server error occurred when connecting to Gemini API." });
     }
 });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
+const initializeServer = async () => {
+    // console.clear(); // Hapus ini, tidak relevan untuk server yang di-deploy
+    // Bagian API Key prompt tidak diperlukan lagi karena menggunakan Environment Variables
+    // let apiKey = loadApiKey();
+    // if (!apiKey) {
+    //     apiKey = await promptForApiKey();
+    // }
+
+    // Gunakan process.env.PORT yang disediakan Vercel, fallback ke 3000 untuk lokal
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+};
+
+initializeServer();
