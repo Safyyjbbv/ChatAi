@@ -18,6 +18,8 @@
     {
       "src": "/(.*)",
       "dest": "public/index.html"
+      "dest": "public/cuaca.js"
+      "dest": "public/search.js"
     }
   ]
 }
