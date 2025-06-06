@@ -8,8 +8,8 @@ const path = require("path");
 const cors = require('cors');
 
 // Impor dari modul-modul kita
-const { weatherTool, getWeatherDataWttrIn } = require('./cuaca.js');
-const { searchTool, performWebSearchImplementation } = require('./search.js');
+const { weatherTool, getWeatherDataWttrIn } = require('./public/cuaca.js');
+const { searchTool, performWebSearchImplementation } = require('./public/search.js');
 
 const app = express();
 
