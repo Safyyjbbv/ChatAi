@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cors());
 
-const geminiModel = "gemini-1.5-flash-latest"; // Model yang akan digunakan di seluruh aplikasi
+const geminiModel = "gemini-2.0-flash"; // Model yang akan digunakan di seluruh aplikasi
 
 /**
  * Helper function untuk menangani error respons API yang tidak OK.
