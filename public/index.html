@@ -8,10 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="script.js"></script>
     <style>
-        /* --- Gaya CSS Anda yang sudah ada (tidak ada perubahan besar di sini) --- */
+        /* --- CSS Anda, tidak ada perubahan di sini --- */
         * {
             margin: 0;
             padding: 0;
@@ -148,17 +146,16 @@
             font-size: 1rem;
         }
 
-        /* --- MODIFIKASI KRUSIAL PADA .message --- */
         .message {
-            display: table; /* PENTING: Membuat lebar elemen sesuai konten */
-            max-width: 75%; /* Batasi lebar maksimum agar tidak terlalu lebar */
+            display: table;
+            max-width: 75%;
             padding: 1rem 1.25rem;
             border-radius: 1.25rem;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
             animation: slideIn 0.3s ease-out;
             position: relative;
-            word-wrap: break-word; /* Memastikan teks panjang pecah baris */
-            margin: 1rem 0; /* Margin vertikal tetap, horizontal akan diatur oleh user/assistant message */
+            word-wrap: break-word;
+            margin: 1rem 0;
         }
 
         .message pre {
@@ -204,26 +201,22 @@
             font-weight: bold;
         }
 
-        /* --- REKONSTRUKSI BALON OBROLAN USER --- */
         .user-message {
             background: rgba(79, 70, 229, 0.7);
             color: white;
-            margin: 1rem 1.5rem 1rem auto; /* Atur margin: 1rem atas/bawah, 1.5rem kanan, auto di kiri */
-                                        /* 1.5rem kanan memberikan jarak lebih jauh dari tepi kanan */
-            border-bottom-right-radius: 0.5rem; /* Sudut tajam/kurang bulat di bawah kanan (sisi pengirim) */
+            margin: 1rem 1.5rem 1rem auto;
+            border-bottom-right-radius: 0.5rem;
             border-top-left-radius: 1.25rem;
             border-top-right-radius: 1.25rem;
             border-bottom-left-radius: 1.25rem;
         }
 
-        /* --- REKONSTRUKSI BALON OBROLAN ASSISTANT --- */
         .assistant-message {
             background-color: rgba(31, 41, 55, 0.7);
             color: #f3f4f6;
             border: 1px solid rgba(45, 45, 61, 0.5);
-            margin: 1rem auto 1rem 1.5rem; /* Atur margin: 1rem atas/bawah, auto di kanan, 1.5rem kiri */
-                                        /* 1.5rem kiri memberikan jarak lebih jauh dari tepi kiri */
-            border-bottom-left-radius: 0.5rem; /* Sudut tajam/kurang bulat di bawah kiri (sisi pengirim) */
+            margin: 1rem auto 1rem 1.5rem;
+            border-bottom-left-radius: 0.5rem;
             border-top-left-radius: 1.25rem;
             border-top-right-radius: 1.25rem;
             border-bottom-right-radius: 1.25rem;
@@ -232,15 +225,19 @@
         .typing-indicator {
             display: flex;
             align-items: center;
+            justify-content: center; /* Agar teks di tengah */
             gap: 0.5rem;
-            padding: 1rem;
+            padding: 1rem 1.25rem; /* Samakan padding dengan .message */
             background-color: rgba(31, 41, 55, 0.7);
             border-radius: 1.25rem;
             border-bottom-left-radius: 0.5rem;
-            margin: 1rem auto 1rem 1.5rem; /* Atur margin seperti asisten untuk konsistensi */
-            max-width: 75%; /* Menyesuaikan dengan max-width message */
+            margin: 1rem auto 1rem 1.5rem;
+            min-width: 80px; /* Lebar minimum agar terlihat bagus */
+            max-width: 75%;
             animation: slideIn 0.3s ease-out;
             border: 1px solid rgba(45, 45, 61, 0.5);
+            font-style: italic; /* Membuat teks miring agar terlihat seperti status */
+            color: #9ca3af; /* Warna abu-abu untuk status */
         }
 
         .typing-dot {
@@ -356,41 +353,13 @@
         }
 
         @media (max-width: 768px) {
-            .header-content {
-                padding: 0.75rem 1rem;
-            }
-
-            .message {
-                max-width: 90%; /* Tetap lebih lebar untuk mobile */
-            }
-
-            /* Sesuaikan margin untuk mobile agar tetap ada jarak */
-            .user-message {
-                margin: 0.75rem 0.75rem 0.75rem auto; /* Jarak dari tepi lebih kecil di mobile */
-            }
-            .assistant-message {
-                margin: 0.75rem auto 0.75rem 0.75rem; /* Jarak dari tepi lebih kecil di mobile */
-            }
-            .typing-indicator {
-                margin: 0.75rem auto 0.75rem 0.75rem;
-                max-width: 90%;
-            }
-
-            button span {
-                display: none;
-            }
-
-            button {
-                padding: 0.75rem;
-            }
-
-            .copy-button {
-                padding: 0.2rem 0.4rem;
-            }
-
-            .copy-button span {
-                display: none;
-            }
+            .header-content, .input-container { padding: 0.75rem 1rem; }
+            .message, .typing-indicator { max-width: 90%; }
+            .user-message { margin: 0.75rem 0.75rem 0.75rem auto; }
+            .assistant-message, .typing-indicator { margin: 0.75rem auto 0.75rem 0.75rem; }
+            button span, .copy-button span { display: none; }
+            button { padding: 0.75rem; }
+            .copy-button { padding: 0.2rem 0.4rem; }
         }
     </style>
 </head>
@@ -398,98 +367,61 @@
     <div class="header">
         <div class="header-content">
             <div class="profile-container">
-                <div class="profile-image">
-                    <i class="fas fa-robot"></i>
-                </div>
-                <div class="profile-info">
-                    <div class="profile-name">Gemini AI Assistant</div>
-                </div>
+                <div class="profile-image"><i class="fas fa-robot"></i></div>
+                <div class="profile-info"><div class="profile-name">Gemini AI Assistant</div></div>
             </div>
             <button onclick="clearChat()" class="clear-chat-button" id="clear-chat-btn">
-                <i class="fas fa-trash"></i>
-                <span>Clear Chat</span>
+                <i class="fas fa-trash"></i><span>Clear Chat</span>
             </button>
         </div>
         <div class="credit">Powered By BgWhin</div>
     </div>
 
-    <div class="chat-container" id="chat-container">
-        <div class="welcome-message" id="welcome-message">
-            <h2>Welcome to Gemini AI Assistant!</h2>
-            <p>I'm here to help you. Feel free to ask me anything.</p>
-        </div>
-    </div>
-
+    <div class="chat-container" id="chat-container"></div>
     <div class="toast" id="toast">Copied to clipboard!</div>
 
     <div class="input-container">
         <div class="input-wrapper">
-            <input
-                type="text"
-                id="prompt"
-                placeholder="Type your message..."
-                onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); generateContent(); }"
-            />
-            <button onclick="generateContent()" id="submit-btn">
-                <i class="fas fa-paper-plane"></i>
-                <span>Send</span>
-            </button>
+            <input type="text" id="prompt" placeholder="Type your message..." onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); generateContent(); }"/>
+            <button onclick="generateContent()" id="submit-btn"><i class="fas fa-paper-plane"></i><span>Send</span></button>
         </div>
     </div>
 
     <script>
+// --- START OF SCRIPT ---
+
 marked.setOptions({
-    highlight: function(code, lang) {
-        if (lang && hljs.getLanguage(lang)) {
-            return hljs.highlight(code, { language: lang }).value;
-        }
-        return hljs.highlightAuto(code).value;
-    },
+    highlight: (code, lang) => hljs.getLanguage(lang) ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value,
     breaks: true
 });
 
 let isGenerating = false;
 let chatHistory = [];
-
 const CHAT_HISTORY_KEY = 'geminiChatHistory';
 
 function saveChatHistory() {
     try {
         localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
-    } catch (e) {
-        console.error("Error saving chat history to localStorage:", e);
-    }
+    } catch (e) { console.error("Error saving chat history:", e); }
 }
 
-function appendMessage(content, role, isRenderOnly = false) {
+function appendMessage(content, role) {
     const chatContainer = document.getElementById('chat-container');
     const welcomeMessage = document.getElementById('welcome-message');
-
-    if (welcomeMessage) {
-        welcomeMessage.remove();
-    }
+    if (welcomeMessage) welcomeMessage.remove();
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
-
-    let displayContent;
-    if (role === 'user') {
-        displayContent = content;
-    } else {
-        displayContent = marked.parse(content);
-    }
-
-    messageDiv.innerHTML = displayContent;
+    messageDiv.innerHTML = role === 'user' ? content : marked.parse(content);
 
     if (role === 'model') {
-        messageDiv.querySelectorAll('pre').forEach((pre) => {
+        messageDiv.querySelectorAll('pre').forEach(pre => {
             const copyButton = document.createElement('button');
             copyButton.className = 'copy-button';
             copyButton.innerHTML = '<i class="fas fa-copy"></i><span>Copy</span>';
             copyButton.onclick = () => {
-                const code = pre.querySelector('code').innerText;
-                navigator.clipboard.writeText(code)
-                    .then(() => showToast('Copied to clipboard!'))
+                navigator.clipboard.writeText(pre.querySelector('code').innerText)
+                    .then(() => showToast('Copied!'))
                     .catch(() => showToast('Failed to copy!'));
             };
             pre.appendChild(copyButton);
@@ -499,64 +431,46 @@ function appendMessage(content, role, isRenderOnly = false) {
 
     chatContainer.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    if (!isRenderOnly) {
-        chatHistory.push({
-            role: role,
-            parts: [{ text: content }]
-        });
-        saveChatHistory();
-    }
 }
 
 function loadChatHistory() {
     const storedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
     const chatContainer = document.getElementById('chat-container');
-
     chatContainer.innerHTML = '';
 
     if (storedHistory) {
         try {
-            const parsedHistory = JSON.parse(storedHistory);
-            if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
-                chatHistory = parsedHistory;
+            chatHistory = JSON.parse(storedHistory) || [];
+            if (chatHistory.length > 0) {
                 chatHistory.forEach(message => {
-                    appendMessage(message.parts[0].text, message.role, true);
+                    if ((message.role === 'user' || message.role === 'model') && message.parts[0].text) {
+                        appendMessage(message.parts[0].text, message.role);
+                    }
                 });
-            } else {
-                displayWelcomeMessage();
-            }
+            } else { displayWelcomeMessage(); }
         } catch (e) {
-            console.error("Error parsing chat history from localStorage:", e);
+            console.error("Error parsing chat history:", e);
             chatHistory = [];
             localStorage.removeItem(CHAT_HISTORY_KEY);
             displayWelcomeMessage();
         }
-    } else {
-        displayWelcomeMessage();
-    }
+    } else { displayWelcomeMessage(); }
 }
 
 function displayWelcomeMessage() {
-    const chatContainer = document.getElementById('chat-container');
-    const welcomeMessageHtml = `
+    document.getElementById('chat-container').innerHTML = `
         <div class="welcome-message" id="welcome-message">
             <h2>Welcome to Gemini AI Assistant!</h2>
             <p>I'm here to help you. Feel free to ask me anything.</p>
-        </div>
-    `;
-    chatContainer.innerHTML = welcomeMessageHtml;
-    chatContainer.scrollTop = 0;
+        </div>`;
 }
 
 function clearChat() {
-    if (confirm("Are you sure you want to clear the entire chat history?")) {
+    if (confirm("Are you sure?")) {
         chatHistory = [];
         localStorage.removeItem(CHAT_HISTORY_KEY);
-        const chatContainer = document.getElementById('chat-container');
-        chatContainer.innerHTML = '';
         displayWelcomeMessage();
-        showToast('Chat history cleared!');
+        showToast('Chat cleared!');
     }
 }
 
@@ -567,79 +481,119 @@ function showToast(message) {
     setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
-function showTypingIndicator() {
+// **FUNGSI showTypingIndicator YANG TELAH DIREVISI**
+function showTypingIndicator(message = '') {
     const chatContainer = document.getElementById('chat-container');
+    removeTypingIndicator(); // Hapus yang lama jika ada
+
     const typingDiv = document.createElement('div');
     typingDiv.className = 'typing-indicator';
-    typingDiv.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-    `;
+    typingDiv.id = 'typing-indicator';
+
+    if (message) {
+        // Jika ada pesan, tampilkan teks
+        typingDiv.textContent = message;
+    } else {
+        // Jika tidak, tampilkan animasi titik-titik
+        typingDiv.innerHTML = `<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`;
+    }
+    
     chatContainer.appendChild(typingDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
-    return typingDiv;
 }
 
-function removeTypingIndicator(indicator) {
-    if (indicator && indicator.parentElement) {
-        indicator.remove();
-    }
+function removeTypingIndicator() {
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.remove();
 }
 
+// **FUNGSI generateContent YANG TELAH DIREVISI**
 async function generateContent() {
     if (isGenerating) return;
 
     const promptInput = document.getElementById('prompt');
     const submitBtn = document.getElementById('submit-btn');
-    const prompt = promptInput.value.trim();
-
-    if (!prompt) return;
+    const userPrompt = promptInput.value.trim();
+    if (!userPrompt) return;
 
     isGenerating = true;
     promptInput.disabled = true;
     submitBtn.disabled = true;
-
-    appendMessage(prompt, 'user');
-
-    const typingIndicator = showTypingIndicator();
+    
+    appendMessage(userPrompt, 'user');
+    chatHistory.push({ role: 'user', parts: [{ text: userPrompt }] });
+    saveChatHistory();
+    
     promptInput.value = '';
+    showTypingIndicator(); // Tampilkan indikator titik-titik awal
 
     try {
         const historyForBackend = chatHistory.slice(0, -1);
-
-        const response = await fetch("/api/generate", {
+        const initialResponse = await fetch("/api/chat/start", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                prompt: prompt,
-                history: historyForBackend
-            })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: userPrompt, history: historyForBackend })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Network response was not ok');
+        if (!initialResponse.ok) {
+            const errorData = await initialResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Initial request failed.');
         }
 
-        const data = await response.json();
-        removeTypingIndicator(typingIndicator);
-
-        if (data.response) {
+        const data = await initialResponse.json();
+        
+        if (data.type === 'final_response') {
+            // Skenario 1: Langsung dapat jawaban
+            removeTypingIndicator();
             appendMessage(data.response, 'model');
-        } else {
-            appendMessage("Sorry, there was an error processing your request. Please try again.", 'model');
-            console.error("No response or unexpected format:", data);
-            chatHistory.pop();
+            chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
             saveChatHistory();
+
+        } else if (data.type === 'tool_use') {
+            // Skenario 2: Perlu menggunakan tool
+            // **PERUBAHAN UTAMA DI SINI**
+            const toolName = data.functionCall.name;
+            let statusText = 'Processing...'; // Teks default
+            if (toolName === 'performWebSearch') {
+                statusText = 'Mencari di web...';
+            } else if (toolName === 'getCurrentWeather') {
+                statusText = 'Mengecek cuaca...';
+            }
+            
+            // Perbarui indikator dengan teks status, bukan buat balon baru
+            showTypingIndicator(statusText);
+
+            chatHistory.push(data.modelContentForHistory);
+            saveChatHistory();
+
+            const toolResponse = await fetch("/api/chat/execute-tool", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ functionCall: data.functionCall, history: chatHistory })
+            });
+
+            if (!toolResponse.ok) {
+                const errorData = await toolResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Tool execution failed.');
+            }
+            
+            const finalData = await toolResponse.json();
+
+            removeTypingIndicator();
+            appendMessage(finalData.response, 'model');
+            chatHistory.push({ role: 'model', parts: [{ text: finalData.response }] });
+            saveChatHistory();
+
+        } else {
+             throw new Error("Unknown response type from server.");
         }
+
     } catch (error) {
-        removeTypingIndicator(typingIndicator);
-        appendMessage(`Error: ${error.message || "Failed to connect to the server. Please try again."}`, 'model');
-        console.error('Error in generateContent:', error);
-        chatHistory.pop();
+        removeTypingIndicator();
+        const errorMessage = `**Error:** ${error.message || "Failed to connect."}`;
+        appendMessage(errorMessage, 'model');
+        // Rollback history jika gagal
+        chatHistory.pop(); 
         saveChatHistory();
     } finally {
         isGenerating = false;
@@ -650,10 +604,11 @@ async function generateContent() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const promptInput = document.getElementById('prompt');
-    promptInput.focus();
+    document.getElementById('prompt').focus();
     loadChatHistory();
 });
+
+// --- END OF SCRIPT ---
     </script>
 </body>
 </html>
