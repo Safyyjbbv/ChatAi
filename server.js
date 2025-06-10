@@ -1,4 +1,4 @@
-// server.js (REVISED FOR TWO-STEP TOOL HANDLING)
+// File: server.js (REVISED FOR CLOUDINARY INTEGRATION)
 
 require('dotenv').config();
 process.noDeprecation = true;
@@ -10,56 +10,52 @@ const cors = require('cors');
 // Impor dari modul-modul kita
 const { weatherTool, getWeatherDataWttrIn } = require('./public/cuaca.js');
 const { searchTool, performWebSearchImplementation } = require('./public/search.js');
+// **IMPOR BARU: Cloudinary Tools**
+const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./public/cloudinary.js');
 
 const app = express();
 
-app.use(express.json());
+// Tingkatkan limit body parser untuk bisa menerima gambar base64
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cors());
 
-const geminiModel = "gemini-2.0-flash"; // Model yang akan digunakan di seluruh aplikasi
+// **Model yang mendukung multimodal (teks & gambar)**
+const geminiModel = "gemini-2.0-flash"; 
 
-/**
- * Helper function untuk menangani error respons API yang tidak OK.
- * @param {Response} apiResponse - Objek respons dari fetch.
- * @returns {string} - Pesan error yang diformat.
- */
 async function handleApiError(apiResponse) {
     const errorBody = await apiResponse.text();
     console.error(`Gemini API request failed (${geminiModel}):`, apiResponse.status, errorBody.substring(0, 500));
     return `Gemini API error: ${apiResponse.status} - ${errorBody.substring(0, 200)}`;
 }
 
-/**
- * Helper function untuk menangani kasus di mana tidak ada kandidat atau respons diblokir.
- * @param {object} geminiResponseData - Data JSON dari respons Gemini.
- * @returns {string} - Pesan error yang informatif.
- */
 function handleNoCandidatesOrBlocked(geminiResponseData) {
-    console.warn("Gemini API: No candidates returned or prompt was blocked.", JSON.stringify(geminiResponseData, null, 2).substring(0, 500));
+    console.warn("Gemini API: No candidates or blocked.", JSON.stringify(geminiResponseData, null, 2).substring(0, 500));
     let errorMessage = "Maaf, saya tidak bisa memberikan respons saat ini.";
-    if (geminiResponseData.promptFeedback) {
-        if (geminiResponseData.promptFeedback.blockReason) {
-            errorMessage = `Permintaan Anda diblokir karena: ${geminiResponseData.promptFeedback.blockReason}. Mohon ubah pertanyaan Anda.`;
-        }
+    if (geminiResponseData.promptFeedback?.blockReason) {
+        errorMessage = `Permintaan diblokir: ${geminiResponseData.promptFeedback.blockReason}.`;
     }
     return errorMessage;
 }
 
-
-// ENDPOINT 1: Memulai obrolan.
-// Menerima prompt user, mengirimkannya ke Gemini, dan menentukan langkah selanjutnya.
-// Respons bisa berupa teks final atau permintaan untuk menggunakan tool.
+// ENDPOINT 1: Memulai obrolan
 app.post("/api/chat/start", async (req, res) => {
-    const userPrompt = req.body.prompt;
-    const history = req.body.history || [];
+    // Ambil data gambar dan prompt dari body
+    const { prompt, history, imageData, mimeType } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey) {
-        return res.status(500).json({ error: "Gemini API Key not configured." });
-    }
+    if (!apiKey) return res.status(500).json({ error: "Gemini API Key not configured." });
 
-    const currentContents = [...history, { role: "user", parts: [{ text: userPrompt }] }];
+    // **Strukturkan 'parts' untuk mendukung multimodal**
+    const userParts = [];
+    if (prompt) userParts.push({ text: prompt });
+    if (imageData && mimeType) {
+        userParts.push({ inlineData: { mimeType: mimeType, data: imageData } });
+    }
+    
+    if(userParts.length === 0) return res.status(400).json({ error: "Prompt atau gambar tidak boleh kosong." });
+
+    const currentContents = [...(history || []), { role: "user", parts: userParts }];
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
 
     try {
@@ -67,7 +63,8 @@ app.post("/api/chat/start", async (req, res) => {
         
         const payload = {
             contents: currentContents,
-            tools: [weatherTool, searchTool],
+            // **Tambahkan Cloudinary Tool ke daftar**
+            tools: [weatherTool, searchTool, cloudinaryTool],
         };
 
         const apiResponse = await fetch(url, {
@@ -77,49 +74,30 @@ app.post("/api/chat/start", async (req, res) => {
         });
 
         if (!apiResponse.ok) {
-            const errorMsg = await handleApiError(apiResponse);
-            return res.status(apiResponse.status).json({ error: errorMsg });
+            return res.status(apiResponse.status).json({ error: await handleApiError(apiResponse) });
         }
 
         const geminiResponseData = await apiResponse.json();
 
         if (!geminiResponseData.candidates || geminiResponseData.candidates.length === 0) {
-            const errorMsg = handleNoCandidatesOrBlocked(geminiResponseData);
-            return res.status(400).json({ error: errorMsg });
+            return res.status(400).json({ error: handleNoCandidatesOrBlocked(geminiResponseData) });
         }
         
         const candidate = geminiResponseData.candidates[0];
         
-        // Periksa finishReason 'SAFETY'
-        if (candidate.finishReason === "SAFETY") {
-            return res.status(400).json({ error: "Respons diblokir karena masalah keamanan konten." });
-        }
+        if (candidate.finishReason === "SAFETY") return res.status(400).json({ error: "Respons diblokir karena masalah keamanan." });
 
         const part = candidate.content?.parts?.[0];
-
-        if (!part) {
-             return res.status(500).json({ error: "Format respons dari Gemini tidak valid." });
-        }
+        if (!part) return res.status(500).json({ error: "Format respons dari Gemini tidak valid." });
 
         if (part.functionCall) {
-            // SKENARIO 1: Gemini meminta untuk menggunakan tool.
-            // Kirim kembali detail functionCall ke frontend agar bisa ditampilkan statusnya.
             console.log("Gemini requested a function call:", part.functionCall.name);
-            res.json({
-                type: 'tool_use',
-                functionCall: part.functionCall,
-                modelContentForHistory: candidate.content // Penting untuk menjaga konsistensi history
-            });
+            res.json({ type: 'tool_use', functionCall: part.functionCall, modelContentForHistory: candidate.content });
         } else if (part.text) {
-            // SKENARIO 2: Gemini langsung menjawab dengan teks.
-            // Kirim kembali teksnya sebagai respons final.
             console.log("Gemini returned final text response directly.");
-            res.json({
-                type: 'final_response',
-                response: part.text
-            });
+            res.json({ type: 'final_response', response: part.text });
         } else {
-            throw new Error("Unexpected response format from Gemini (not text or functionCall).");
+            throw new Error("Unexpected response format from Gemini.");
         }
 
     } catch (err) {
@@ -129,83 +107,64 @@ app.post("/api/chat/start", async (req, res) => {
 });
 
 
-// ENDPOINT 2: Mengeksekusi tool.
-// Menerima detail functionCall dari frontend, mengeksekusinya, mengirim hasilnya kembali ke Gemini,
-// dan mengembalikan respons teks final.
+// ENDPOINT 2: Mengeksekusi tool
 app.post("/api/chat/execute-tool", async (req, res) => {
-    const { functionCall, history } = req.body;
+    // Terima juga imageData, karena mungkin dibutuhkan oleh tool (seperti upload)
+    const { functionCall, history, imageData } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey || !functionCall || !history) {
-        return res.status(400).json({ error: "Missing required parameters (apiKey, functionCall, or history)." });
-    }
+    if (!apiKey || !functionCall || !history) return res.status(400).json({ error: "Missing required parameters." });
 
     try {
         console.log(`[Execute Tool] Executing function: ${functionCall.name}`);
         let functionResponseData;
+        const args = functionCall.args;
 
-        // Logika eksekusi tool Anda yang sudah ada
+        // **Routing untuk semua function call**
         if (functionCall.name === "getCurrentWeather") {
-            functionResponseData = await getWeatherDataWttrIn(functionCall.args.city);
+            functionResponseData = await getWeatherDataWttrIn(args.city);
         } else if (functionCall.name === "performWebSearch") {
-            functionResponseData = await performWebSearchImplementation(functionCall.args.query);
+            functionResponseData = await performWebSearchImplementation(args.query);
+        } else if (functionCall.name === "uploadImageToCloudinary") {
+            // Panggil implementasi dari modul cloudinary.js
+            functionResponseData = await uploadImageImplementation(imageData, args.folder, args.public_id);
+        } else if (functionCall.name === "listImagesInCloudinary") {
+            functionResponseData = await listImagesImplementation(args.folder);
         } else {
             console.error(`Unknown function call requested: ${functionCall.name}`);
             functionResponseData = { error: `Fungsi ${functionCall.name} tidak dikenal oleh server.` };
         }
 
-        // Buat payload baru untuk dikirim kembali ke Gemini dengan hasil dari tool
         const currentContents = [
-            ...history, // Ini berisi history SAMPAI respons model yang meminta function call
-            {
-                // Bagian ini adalah hasil dari eksekusi tool kita
-                role: "user", // Sesuai dokumentasi, role "user" untuk functionResponse
-                parts: [{
-                    functionResponse: {
-                        name: functionCall.name,
-                        response: functionResponseData
-                    }
-                }]
-            }
+            ...history,
+            { role: "user", parts: [{ functionResponse: { name: functionCall.name, response: functionResponseData } }] }
         ];
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: currentContents,
-            tools: [weatherTool, searchTool],
+            tools: [weatherTool, searchTool, cloudinaryTool],
         };
         
         console.log(`[Execute Tool] Sending tool result back to Gemini.`);
         const apiResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
         });
 
-        if (!apiResponse.ok) {
-            const errorMsg = await handleApiError(apiResponse);
-            return res.status(apiResponse.status).json({ error: errorMsg });
-        }
+        if (!apiResponse.ok) return res.status(apiResponse.status).json({ error: await handleApiError(apiResponse) });
         
         const geminiResponseData = await apiResponse.json();
 
         if (!geminiResponseData.candidates || geminiResponseData.candidates.length === 0) {
-            const errorMsg = handleNoCandidatesOrBlocked(geminiResponseData);
-            return res.status(400).json({ error: errorMsg });
+            return res.status(400).json({ error: handleNoCandidatesOrBlocked(geminiResponseData) });
         }
 
         const finalPart = geminiResponseData.candidates[0].content?.parts?.[0];
-        
-        if (!finalPart || !finalPart.text) {
-             return res.status(500).json({ error: "Respons final dari Gemini tidak berisi teks." });
-        }
+        if (!finalPart || !finalPart.text) return res.status(500).json({ error: "Respons final dari Gemini tidak berisi teks." });
         
         console.log("Gemini returned final text response after tool execution.");
-        res.json({
-            type: 'final_response',
-            response: finalPart.text
-        });
+        res.json({ type: 'final_response', response: finalPart.text });
 
     } catch (err) {
         console.error("Error in /api/chat/execute-tool:", err);
@@ -213,16 +172,7 @@ app.post("/api/chat/execute-tool", async (req, res) => {
     }
 });
 
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public/index.html")));
 
-// Endpoint untuk menyajikan file HTML utama
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public/index.html"));
-});
-
-// Inisialisasi server
-const initializeServer = async () => {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}. Ready to handle chat requests.`));
-};
-
-initializeServer();
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}. Ready to handle chat requests.`));
