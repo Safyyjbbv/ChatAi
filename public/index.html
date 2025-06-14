@@ -42,10 +42,8 @@
         button { background: linear-gradient(135deg, var(--accent-color), #818cf8); color: white; border: none; border-radius: 9999px; padding: 0.75rem 1.5rem; cursor: pointer; font-weight: 500; transition: all 0.2s ease; display: flex; align-items: center; gap: 0.5rem; font-size: 0.938rem; }
         button:hover { opacity: 0.9; transform: translateY(-1px); }
         button:disabled { background: #374151; cursor: not-allowed; transform: none; }
-        /* ** Tombol Attach Baru ** */
         .attach-button { background: transparent; padding: 0.75rem; min-width: 46px; }
         .attach-button.active { color: #a5b4fc; background: rgba(99, 102, 241, 0.2); }
-        /* ** Preview Gambar ** */
         #image-preview-container { position: absolute; bottom: 120%; left: 0; background: #1e1e2d; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #2d2d3d; display: none; align-items: center; gap: 0.5rem; }
         #image-preview { max-height: 50px; border-radius: 0.25rem; }
         #remove-image-btn { background: #ef4444; border-radius: 50%; width: 20px; height: 20px; padding: 0; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; min-width: 0; }
@@ -76,7 +74,6 @@
                 <img id="image-preview" src="" alt="Image preview">
                 <button id="remove-image-btn" title="Remove image"><i class="fas fa-times"></i></button>
             </div>
-            <!-- ** Tombol dan Input File Baru ** -->
             <input type="file" id="file-input" accept="image/*" style="display: none;">
             <button id="attach-file-btn" class="attach-button" title="Attach image">
                 <i class="fas fa-paperclip"></i>
@@ -95,7 +92,6 @@ marked.setOptions({
 let isGenerating = false;
 let chatHistory = [];
 const CHAT_HISTORY_KEY = 'geminiChatHistory';
-// ** Variabel untuk menyimpan data file yang dilampirkan **
 let attachedFileData = null;
 
 function saveChatHistory() {
@@ -111,15 +107,20 @@ function appendMessage(content, role) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
     
-    // ** Tambahkan preview gambar jika pesan dari user dan ada gambar **
     let messageContent = '';
+    // Jika pesan dari user DAN ada gambar yang di-attach
     if (role === 'user' && content.image) {
         messageContent += `<img src="${content.image}" alt="User upload" style="max-width: 200px; border-radius: 0.5rem; margin-bottom: 0.5rem; display: block;" />`;
     }
-    messageContent += role === 'user' ? content.text : marked.parse(content);
+
+    // Tampilkan teks. Untuk AI, render sebagai Markdown. Untuk user, tampilkan biasa.
+    // 'model' adalah role yang dikirim dari backend baru kita.
+    const textContent = (role === 'user') ? content.text : (content || '');
+    messageContent += (role === 'model' || role === 'assistant-message') ? marked.parse(textContent) : textContent;
     messageDiv.innerHTML = messageContent;
 
-    if (role === 'model') {
+    // Tambahkan tombol copy hanya untuk pesan dari model/AI
+    if (role === 'model' || role === 'assistant-message') {
         messageDiv.querySelectorAll('pre').forEach(pre => {
             const copyButton = document.createElement('button');
             copyButton.className = 'copy-button';
@@ -142,8 +143,10 @@ function loadChatHistory() {
             chatHistory = JSON.parse(storedHistory) || [];
             if (chatHistory.length > 0) {
                 chatHistory.forEach(message => {
-                    if ((message.role === 'user' || message.role === 'model') && message.parts[0].text) {
-                        appendMessage(message.parts[0].text, message.role);
+                    // Cek jika message.parts ada dan punya isi
+                    const part = message.parts?.[0];
+                    if (part && part.text) {
+                       appendMessage(part.text, message.role);
                     }
                 });
             } else { displayWelcomeMessage(); }
@@ -162,7 +165,6 @@ function showToast(message) { const t = document.getElementById('toast'); t.text
 function showTypingIndicator(message = '') { const c = document.getElementById('chat-container'); removeTypingIndicator(); const d = document.createElement('div'); d.className = 'typing-indicator'; d.id = 'typing-indicator'; d.innerHTML = message ? message : `<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`; c.appendChild(d); c.scrollTop = c.scrollHeight; }
 function removeTypingIndicator() { const i = document.getElementById('typing-indicator'); if (i) i.remove(); }
 
-// ** Fungsi-fungsi baru untuk menangani file **
 function setupFileAttachment() {
     const attachBtn = document.getElementById('attach-file-btn');
     const fileInput = document.getElementById('file-input');
@@ -186,14 +188,14 @@ function setupFileAttachment() {
                 base64: reader.result.split(',')[1],
                 mimeType: file.type,
                 name: file.name,
-                dataUrl: reader.result // Untuk preview di UI
+                dataUrl: reader.result
             };
             previewImg.src = reader.result;
             previewContainer.style.display = 'flex';
             attachBtn.classList.add('active');
         };
         reader.readAsDataURL(file);
-        fileInput.value = ''; // Reset input agar bisa pilih file yang sama lagi
+        fileInput.value = '';
     });
 }
 
@@ -203,107 +205,95 @@ function clearAttachment() {
     document.getElementById('attach-file-btn').classList.remove('active');
 }
 
-// ** Fungsi generateContent yang telah di-upgrade total **
+// ======================================================================
+// === FUNGSI UTAMA YANG DIUBAH - LEBIH SEDERHANA & KUAT ===
+// ======================================================================
 async function generateContent() {
     if (isGenerating) return;
     const promptInput = document.getElementById('prompt');
     const userPrompt = promptInput.value.trim();
-    const fileToSend = attachedFileData; // Simpan file yang dilampirkan saat ini ke variabel lokal
+    const fileToSend = attachedFileData;
 
     if (!userPrompt && !fileToSend) {
         showToast('Please type a message or attach an image.');
         return;
     }
-    
+
     isGenerating = true;
     document.getElementById('submit-btn').disabled = true;
     document.getElementById('attach-file-btn').disabled = true;
     promptInput.disabled = true;
 
-    // Tampilkan pesan user di chat
+    // Tampilkan pesan user di UI
     appendMessage({ text: userPrompt, image: fileToSend?.dataUrl }, 'user');
     
-    // Bangun history untuk backend
-    const userParts = [];
-    if (userPrompt) userParts.push({ text: userPrompt });
-    if(fileToSend) userParts.push({ inlineData: { mimeType: fileToSend.mimeType, data: fileToSend.base64 } });
-    chatHistory.push({ role: 'user', parts: userParts });
-    saveChatHistory();
+    // Bangun 'parts' untuk dikirim ke backend
+    // Sesuai dengan format history yang diharapkan server
+    const userMessageForHistory = { 
+        role: 'user', 
+        parts: [{ text: userPrompt }] 
+    };
+    // Note: Gambar tidak dimasukkan ke history client-side untuk simplifikasi.
+    // Server akan mengelolanya dengan lebih baik.
+    chatHistory.push(userMessageForHistory);
     
+    // Hapus input dan lampiran setelah dikirim
     promptInput.value = '';
-    clearAttachment(); // Hapus file dari UI setelah dikirim
+    clearAttachment();
     showTypingIndicator();
 
     try {
-        const historyForBackend = chatHistory.slice(0, -1);
-        const initialPayload = {
-            prompt: userPrompt,
-            history: historyForBackend,
-            imageData: fileToSend?.base64,
-            mimeType: fileToSend?.mimeType
-        };
-
-        const initialResponse = await fetch("/api/chat/start", {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(initialPayload)
+        // Panggil endpoint tunggal yang baru: /api/chat
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                prompt: userPrompt,
+                history: chatHistory.slice(0, -1), // Kirim history *sebelum* pesan baru
+                imageData: fileToSend?.base64,
+                mimeType: fileToSend?.mimeType
+            })
         });
-        if (!initialResponse.ok) throw new Error((await initialResponse.json()).error || 'Initial request failed.');
-        
-        const data = await initialResponse.json();
-        
-        if (data.type === 'final_response') {
-            removeTypingIndicator();
-            appendMessage(data.response, 'model');
-            chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
-        } else if (data.type === 'tool_use') {
-            const toolName = data.functionCall.name;
-            let statusText = 'Processing...';
-            if (toolName.includes('Search')) statusText = 'Mencari di web...';
-            else if (toolName.includes('Weather')) statusText = 'Mengecek cuaca...';
-            else if (toolName.includes('Cloudinary')) statusText = 'Mengakses Cloudinary...';
-            showTypingIndicator(statusText);
 
-            chatHistory.push(data.modelContentForHistory);
-            
-            const toolPayload = {
-                functionCall: data.functionCall,
-                history: chatHistory,
-                // Kirim ulang data gambar jika tool memerlukannya
-                imageData: fileToSend?.base64
-            };
-            
-            const toolResponse = await fetch("/api/chat/execute-tool", {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(toolPayload)
-            });
-            if (!toolResponse.ok) throw new Error((await toolResponse.json()).error || 'Tool execution failed.');
-            
-            const finalData = await toolResponse.json();
-            removeTypingIndicator();
-            appendMessage(finalData.response, 'model');
-            chatHistory.push({ role: 'model', parts: [{ text: finalData.response }] });
-        } else {
-            throw new Error("Unknown response type from server.");
+        removeTypingIndicator();
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Request to server failed.');
         }
+
+        const data = await response.json();
+
+        // Tampilkan respons AI dari server
+        appendMessage(data.response, 'model');
+        
+        // Perbarui history lokal dengan history lengkap dari server
+        // Ini memastikan client & server selalu sinkron, termasuk hasil dari tool-use
+        chatHistory = data.updatedHistory;
+        
         saveChatHistory();
 
     } catch (error) {
         removeTypingIndicator();
-        const errorMessage = `**Error:** ${error.message || "Failed to connect."}`;
+        // Tampilkan pesan error di UI
+        const errorMessage = `**Error:** ${error.message || "Failed to connect to the server."}`;
         appendMessage(errorMessage, 'model');
-        chatHistory.pop(); // Hapus pesan 'user' terakhir jika gagal
-        saveChatHistory();
+        // Hapus pesan 'user' terakhir dari history jika pengiriman gagal
+        chatHistory.pop(); 
     } finally {
         isGenerating = false;
         document.getElementById('submit-btn').disabled = false;
         document.getElementById('attach-file-btn').disabled = false;
         promptInput.disabled = false;
         promptInput.focus();
+        saveChatHistory(); // Selalu simpan state terakhir dari history
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prompt').focus();
     loadChatHistory();
-    setupFileAttachment(); // ** Panggil fungsi setup baru **
+    setupFileAttachment();
 });
 </script>
 </body>
