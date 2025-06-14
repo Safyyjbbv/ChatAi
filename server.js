@@ -1,4 +1,4 @@
-// File: server.js (REVISED FOR CLOUDINARY INTEGRATION)
+// File: server.js (REVISED FOR VERCEL DEPLOYMENT WITH WEBHOOKS)
 
 require('dotenv').config();
 process.noDeprecation = true;
@@ -6,173 +6,174 @@ process.noDeprecation = true;
 const express = require("express");
 const path = require("path");
 const cors = require('cors');
+const TelegramBot = require('node-telegram-bot-api');
 
-// Impor dari modul-modul kita
+// ... (impor modul Anda seperti cuaca, search, dll. tetap sama) ...
 const { weatherTool, getWeatherDataWttrIn } = require('./public/cuaca.js');
 const { searchTool, performWebSearchImplementation } = require('./public/search.js');
-// **IMPOR BARU: Cloudinary Tools**
 const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./public/cloudinary.js');
 
-const app = express();
 
-// Tingkatkan limit body parser untuk bisa menerima gambar base64
+// =================================================================
+// KONFIGURASI APLIKASI
+// =================================================================
+const app = express();
 app.use(express.json({ limit: '50mb' }));
+// PENTING: Pindahkan body parser Express ke atas sebelum routing webhook
+// agar body dari Telegram bisa dibaca sebagai JSON.
+app.use(express.json()); 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cors());
 
-// **Model yang mendukung multimodal (teks & gambar)**
-const geminiModel = "gemini-2.0-flash"; 
+const geminiModel = "gemini-2.0-flash";
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 
-async function handleApiError(apiResponse) {
-    const errorBody = await apiResponse.text();
-    console.error(`Gemini API request failed (${geminiModel}):`, apiResponse.status, errorBody.substring(0, 500));
-    return `Gemini API error: ${apiResponse.status} - ${errorBody.substring(0, 200)}`;
-}
-
-function handleNoCandidatesOrBlocked(geminiResponseData) {
-    console.warn("Gemini API: No candidates or blocked.", JSON.stringify(geminiResponseData, null, 2).substring(0, 500));
-    let errorMessage = "Maaf, saya tidak bisa memberikan respons saat ini.";
-    if (geminiResponseData.promptFeedback?.blockReason) {
-        errorMessage = `Permintaan diblokir: ${geminiResponseData.promptFeedback.blockReason}.`;
+// =================================================================
+// LOGIKA INTI GEMINI (Fungsi runGeminiConversation Anda tetap SAMA, tidak perlu diubah)
+// =================================================================
+const telegramChatHistories = {};
+async function runGeminiConversation(prompt, history, imageData, mimeType) {
+    // ... Seluruh kode fungsi runGeminiConversation Anda ada di sini ...
+    // ... Tidak ada yang perlu diubah di dalam fungsi ini ...
+    if (!geminiApiKey) {
+        throw new Error("Gemini API Key not configured.");
     }
-    return errorMessage;
-}
-
-// ENDPOINT 1: Memulai obrolan
-app.post("/api/chat/start", async (req, res) => {
-    // Ambil data gambar dan prompt dari body
-    const { prompt, history, imageData, mimeType } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey) return res.status(500).json({ error: "Gemini API Key not configured." });
-
-    // **Strukturkan 'parts' untuk mendukung multimodal**
     const userParts = [];
     if (prompt) userParts.push({ text: prompt });
     if (imageData && mimeType) {
         userParts.push({ inlineData: { mimeType: mimeType, data: imageData } });
     }
-    
-    if(userParts.length === 0) return res.status(400).json({ error: "Prompt atau gambar tidak boleh kosong." });
-
-    const currentContents = [...(history || []), { role: "user", parts: userParts }];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-
+    if (userParts.length === 0) {
+        throw new Error("Prompt atau gambar tidak boleh kosong.");
+    }
+    let currentContents = [...(history || []), { role: "user", parts: userParts }];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
     try {
-        console.log(`[Chat Start] Sending to Gemini. Contents length: ${currentContents.length}`);
-        
-        const payload = {
+        let payload = {
             contents: currentContents,
-            // **Tambahkan Cloudinary Tool ke daftar**
             tools: [weatherTool, searchTool, cloudinaryTool],
         };
-
-        const apiResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-
+        let apiResponse = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         if (!apiResponse.ok) {
-            return res.status(apiResponse.status).json({ error: await handleApiError(apiResponse) });
+            const errorBody = await apiResponse.text();
+            throw new Error(`Gemini API error: ${apiResponse.status} - ${errorBody.substring(0, 200)}`);
         }
-
-        const geminiResponseData = await apiResponse.json();
-
-        if (!geminiResponseData.candidates || geminiResponseData.candidates.length === 0) {
-            return res.status(400).json({ error: handleNoCandidatesOrBlocked(geminiResponseData) });
+        let geminiResponseData = await apiResponse.json();
+        let candidate = geminiResponseData.candidates?.[0];
+        let functionCallPart = candidate?.content?.parts?.find(p => p.functionCall);
+        if (functionCallPart && functionCallPart.functionCall) {
+            const functionCall = functionCallPart.functionCall;
+            const functionName = functionCall.name;
+            const args = functionCall.args;
+            currentContents.push(candidate.content);
+            let functionResponseData;
+            if (functionName === "getCurrentWeather") {
+                functionResponseData = await getWeatherDataWttrIn(args.city);
+            } else if (functionName === "performWebSearch") {
+                functionResponseData = await performWebSearchImplementation(args.query);
+            } else if (functionName === "uploadImageToCloudinary") {
+                functionResponseData = await uploadImageImplementation(imageData, args.folder, args.public_id);
+            } else if (functionName === "listImagesInCloudinary") {
+                functionResponseData = await listImagesImplementation(args.folder);
+            } else {
+                functionResponseData = { error: `Fungsi ${functionName} tidak dikenal.` };
+            }
+            currentContents.push({ role: "user", parts: [{ functionResponse: { name: functionName, response: functionResponseData } }] });
+            payload.contents = currentContents;
+            apiResponse = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            if (!apiResponse.ok) {
+                 const errorBody = await apiResponse.text();
+                 throw new Error(`Gemini API error after tool: ${apiResponse.status} - ${errorBody.substring(0, 200)}`);
+            }
+            geminiResponseData = await apiResponse.json();
         }
-        
-        const candidate = geminiResponseData.candidates[0];
-        
-        if (candidate.finishReason === "SAFETY") return res.status(400).json({ error: "Respons diblokir karena masalah keamanan." });
-
-        const part = candidate.content?.parts?.[0];
-        if (!part) return res.status(500).json({ error: "Format respons dari Gemini tidak valid." });
-
-        if (part.functionCall) {
-            console.log("Gemini requested a function call:", part.functionCall.name);
-            res.json({ type: 'tool_use', functionCall: part.functionCall, modelContentForHistory: candidate.content });
-        } else if (part.text) {
-            console.log("Gemini returned final text response directly.");
-            res.json({ type: 'final_response', response: part.text });
-        } else {
-            throw new Error("Unexpected response format from Gemini.");
+        const finalCandidate = geminiResponseData.candidates?.[0];
+        if (!finalCandidate || finalCandidate.finishReason === "SAFETY" || !finalCandidate.content?.parts?.[0]?.text) {
+             let reason = finalCandidate?.finishReason || "Tidak ada kandidat respons";
+             if (geminiResponseData.promptFeedback?.blockReason) {
+                 reason = `Permintaan diblokir: ${geminiResponseData.promptFeedback.blockReason}`;
+             }
+             return `Maaf, terjadi masalah: ${reason}. Coba lagi nanti.`;
         }
-
+        const finalText = finalCandidate.content.parts[0].text;
+        return { responseText: finalText, updatedHistory: [...currentContents, finalCandidate.content] };
     } catch (err) {
-        console.error("Error in /api/chat/start:", err);
-        res.status(500).json({ error: `Server error: ${err.message}` });
+        console.error("[Gemini Core] Uncaught error:", err);
+        throw err;
     }
-});
+}
 
 
-// ENDPOINT 2: Mengeksekusi tool
-app.post("/api/chat/execute-tool", async (req, res) => {
-    // Terima juga imageData, karena mungkin dibutuhkan oleh tool (seperti upload)
-    const { functionCall, history, imageData } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
+// =================================================================
+// BAGIAN TELEGRAM BOT (REVISI UNTUK WEBHOOK)
+// =================================================================
+if (!telegramToken) {
+    console.warn("TELEGRAM_BOT_TOKEN tidak ditemukan. Bot Telegram tidak akan berjalan.");
+} else {
+    // Inisialisasi bot TANPA polling
+    const bot = new TelegramBot(telegramToken);
+    
+    // Buat endpoint rahasia untuk webhook Telegram
+    const webhookPath = `/api/telegram/webhook/${telegramToken}`;
+    app.post(webhookPath, (req, res) => {
+        // Beri tahu library bot untuk memproses update yang masuk
+        bot.processUpdate(req.body);
+        // Kirim status 200 OK agar Telegram tahu pesannya sudah diterima
+        res.sendStatus(200); 
+    });
 
-    if (!apiKey || !functionCall || !history) return res.status(400).json({ error: "Missing required parameters." });
+    console.log(`Telegram Bot webhook is configured at path: ${webhookPath}`);
 
+    // Listener 'message' tetap sama, tidak perlu diubah!
+    // Library akan mengarahkan update dari webhook ke listener ini.
+    bot.on('message', async (msg) => {
+        const chatId = msg.chat.id;
+        const userInput = msg.text;
+
+        if (!userInput) return;
+        if (userInput.startsWith('/')) {
+             if (userInput === '/start') {
+                 bot.sendMessage(chatId, "Halo! Saya adalah Asisten AI Gemini Anda. Kirimkan saya pesan untuk memulai percakapan.");
+             } else if (userInput === '/clear') {
+                 delete telegramChatHistories[chatId];
+                 bot.sendMessage(chatId, "Riwayat percakapan telah dihapus.");
+             }
+            return;
+        }
+
+        try {
+            bot.sendChatAction(chatId, 'typing');
+            const userHistory = telegramChatHistories[chatId] || [];
+            const result = await runGeminiConversation(userInput, userHistory, null, null);
+            telegramChatHistories[chatId] = result.updatedHistory;
+            bot.sendMessage(chatId, result.responseText, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error(`[Telegram] Error processing message for chat ${chatId}:`, error);
+            bot.sendMessage(chatId, `Maaf, terjadi kesalahan: ${error.message}`);
+        }
+    });
+}
+
+// =================================================================
+// ENDPOINT UNTUK WEB CHAT (TETAP SAMA)
+// =================================================================
+app.post("/api/chat", async (req, res) => {
+    // ... Logika endpoint ini tidak perlu diubah ...
+    const { prompt, history, imageData, mimeType } = req.body;
     try {
-        console.log(`[Execute Tool] Executing function: ${functionCall.name}`);
-        let functionResponseData;
-        const args = functionCall.args;
-
-        // **Routing untuk semua function call**
-        if (functionCall.name === "getCurrentWeather") {
-            functionResponseData = await getWeatherDataWttrIn(args.city);
-        } else if (functionCall.name === "performWebSearch") {
-            functionResponseData = await performWebSearchImplementation(args.query);
-        } else if (functionCall.name === "uploadImageToCloudinary") {
-            // Panggil implementasi dari modul cloudinary.js
-            functionResponseData = await uploadImageImplementation(imageData, args.folder, args.public_id);
-        } else if (functionCall.name === "listImagesInCloudinary") {
-            functionResponseData = await listImagesImplementation(args.folder);
-        } else {
-            console.error(`Unknown function call requested: ${functionCall.name}`);
-            functionResponseData = { error: `Fungsi ${functionCall.name} tidak dikenal oleh server.` };
-        }
-
-        const currentContents = [
-            ...history,
-            { role: "user", parts: [{ functionResponse: { name: functionCall.name, response: functionResponseData } }] }
-        ];
-        
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-        
-        const payload = {
-            contents: currentContents,
-            tools: [weatherTool, searchTool, cloudinaryTool],
-        };
-        
-        console.log(`[Execute Tool] Sending tool result back to Gemini.`);
-        const apiResponse = await fetch(url, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        console.log("[Web Chat] Processing request.");
+        const result = await runGeminiConversation(prompt, history, imageData, mimeType);
+        res.json({
+            response: result.responseText,
+            updatedHistory: result.updatedHistory
         });
-
-        if (!apiResponse.ok) return res.status(apiResponse.status).json({ error: await handleApiError(apiResponse) });
-        
-        const geminiResponseData = await apiResponse.json();
-
-        if (!geminiResponseData.candidates || geminiResponseData.candidates.length === 0) {
-            return res.status(400).json({ error: handleNoCandidatesOrBlocked(geminiResponseData) });
-        }
-
-        const finalPart = geminiResponseData.candidates[0].content?.parts?.[0];
-        if (!finalPart || !finalPart.text) return res.status(500).json({ error: "Respons final dari Gemini tidak berisi teks." });
-        
-        console.log("Gemini returned final text response after tool execution.");
-        res.json({ type: 'final_response', response: finalPart.text });
-
-    } catch (err) {
-        console.error("Error in /api/chat/execute-tool:", err);
-        res.status(500).json({ error: `Server error: ${err.message}` });
+    } catch (error) {
+        console.error("[Web Chat] Error:", error);
+        res.status(500).json({ error: `Server error: ${error.message}` });
     }
 });
-
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}. Ready to handle chat requests.`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}. Ready for web chat and Telegram webhooks.`));
