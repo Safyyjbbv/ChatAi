@@ -9,9 +9,9 @@ const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 
 // ... (impor modul Anda seperti cuaca, search, dll. tetap sama) ...
-const { weatherTool, getWeatherDataWttrIn } = require('./public/cuaca.js');
-const { searchTool, performWebSearchImplementation } = require('./public/search.js');
-const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./public/cloudinary.js');
+const { weatherTool, getWeatherDataWttrIn } = require('./cuaca.js');
+const { searchTool, performWebSearchImplementation } = require('./search.js');
+const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./cloudinary.js');
 
 
 // =================================================================
