@@ -9,9 +9,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const { kv } = require('@vercel/kv'); // <-- Impor Vercel KV
 
 // Asumsi file-file ini juga ada di dalam direktori /api
-const { weatherTool, getWeatherDataWttrIn } = require('./cuaca.js');
-const { searchTool, performWebSearchImplementation } = require('./search.js');
-const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./cloudinary.js');
+const { weatherTool, getWeatherDataWttrIn } = require('./public/cuaca.js');
+const { searchTool, performWebSearchImplementation } = require('./public/search.js');
+const { cloudinaryTool, uploadImageImplementation, listImagesImplementation } = require('./public/cloudinary.js');
 
 // =================================================================
 // KONFIGURASI APLIKASI
